@@ -1,0 +1,30 @@
+# .github/workflows/build.yml
+name: Build
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    name: build ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [ x86_64-pc-windows-gnu, x86_64-unknown-linux-musl ]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile
+        id: compile
+        uses: rust-build/rust-build.action@v1.4.5
+        with:
+          RUSTTARGET: ${{ matrix.target }}
+          UPLOAD_MODE: none
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Binary ${{ matrix.target }}
+          path: |
+            ${{ steps.compile.outputs.BUILT_ARCHIVE }}
+            ${{ steps.compile.outputs.BUILT_CHECKSUM }}
