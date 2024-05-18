@@ -137,7 +137,12 @@ async fn process_file(path: &Path, root_directory: &String, consul_client: &Cons
 
     let relative_path = path.to_string_lossy().to_string();
     let relative_path_striped = relative_path.replace(root_directory, "");
-    let key = relative_path_striped.replace("\\", "/");
+    let mut key = relative_path_striped.replace("\\", "/");
+
+    if(key.starts_with("/")) {
+        key.remove(0);
+    }
+
     let hash_key = format!("metadata/{}", key);
     if let Some(existing_meta) = consul_client.get_key_metadata(&hash_key).await? {
         if existing_meta.hash == hash {
