@@ -1,43 +1,59 @@
 name: Build Image
 
 on:
-  release:
-    types: [ created ]
+  workflow_run:
+    workflows: [ "Release" ]
+    types:
+      - completed
   workflow_dispatch:
     inputs:
       RELEASE_VERSION:
         required: true
         type: string
 env:
-  FILE_NAME: consul-kv-sync_${{ env.RELEASE_VERSION }}_${{ matrix.target }}.tar.gz
-  RELEASE_VERSION: ${{ github.ref }}
   RELEASE_INPUT: ${{ inputs.RELEASE_VERSION }}
   REGISTRY_DOMAIN: ${{ vars.REGISTRY_DOMAIN }}
-  WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id}}
+  WORKFLOW_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id}}"
   WORKFLOW_REF: build ${{ github.run_id }} on ${{ github.ref_name }}
+  IMAGE_NAME: ${{ vars.IMAGE_NAME }}
 jobs:
-  build:
+  build-image:
     name: build image ${{ matrix.target }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         target: [ x86_64-unknown-linux-musl ]
+    permissions:
+      contents: write
+      packages: write
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: download artifact
-        uses: actions/download-artifact@v4
+      - name: download artifact (with release)
+        if: github.event_name == 'workflow_run'
+        uses: robinraju/release-downloader@v1.10
         with:
-          path: downloads
-          pattern: ${{ env.FILE_NAME }}
+          out-file-path: downloads
+          tag: ${{ github.event.workflow_run.head_branch }}
+          tarBall: true
+          zipBall: false
+          extract: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: download artifact (with input)
+        if: ${{ github.event.inputs.RELEASE_VERSION != '' }}
+        uses: robinraju/release-downloader@v1.10
+        with:
+          out-file-path: downloads
+          tag: ${{ github.event.inputs.RELEASE_VERSION }}
+          tarBall: true
+          zipBall: false
+          extract: true
+          token: ${{ secrets.GITHUB_TOKEN }}
       - name: check download dir contents
         run: find downloads
-      - name: unzip artifact
-        run: |
-          cd downloads
-          tar zxvf downloads/$FILE_NAME
       - name: Install depot
         run: |
           curl -L https://depot.dev/install-cli.sh | sudo env DEPOT_INSTALL_DIR=/usr/local/bin sh
@@ -46,15 +62,16 @@ jobs:
         with:
           registry: ${{ env.REGISTRY_DOMAIN }}
           username: ${{ secrets.REGISTRY_USER }}
-          password: ${{ secrets.REGISTRY_PASSWORD }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and tag image
+        id: docker_build
         env:
-          IMAGE_VERSION: ${{ env.RELEASE_VERSION }}
           DEPOT_TOKEN: ${{ secrets.DEPOT_TOKEN }}
           DEPOT_PROJECT_ID: ${{ vars.DEPOT_PROJECT_ID }}
         run: |
-          export TAG_VERSION=${RELEASE_INPUT:-"${RELEASE_VERSION}"}
-          /usr/local/bin/depot build --push --platform linux/amd64 -t ${REGISTRY_URL}/${IMAGE_NAME}:${IMAGE_VERSION} --build-arg RELEASE_VERSION=${TAG_VERSION} .
+          export TAG_VERSION=${RELEASE_INPUT:-"${{ github.event.workflow_run.head_branch }}"}
+          /usr/local/bin/depot build --push --platform linux/amd64 -t ${REGISTRY_DOMAIN}/${IMAGE_NAME}:${TAG_VERSION} .
+          echo "::set-output name=tag_version::${TAG_VERSION}"
       - name: Notify image build success
         if: success()
         uses: giovannicandido/notification-action@main
@@ -63,7 +80,7 @@ jobs:
           topic: "deployments/${{ github.repository }}"
           workflow-url: ${{ env.WORKFLOW_URL }}
           workflow-ref: ${{env.WORKFLOW_REF }}
-          tag: ${{ env.RELEASE_VERSION }}
+          tag: ${{ steps.docker_build.outputs.tag_version }}
           content-type: image-success
       - name: Notify deployment failure
         if: failure()
@@ -73,5 +90,5 @@ jobs:
           topic: "deployments/${{ github.repository }}"
           workflow-url: ${{ env.WORKFLOW_URL }}
           workflow-ref: ${{env.WORKFLOW_REF }}
-          tag: ${{ env.RELEASE_VERSION }}
+          tag: ${{ steps.docker_build.outputs.tag_version }}
           content-type: deploy-failure

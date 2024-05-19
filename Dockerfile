@@ -1,6 +1,4 @@
 FROM alpine:3.19
-ARG TARGET=x86_64-unknown-linux-musl
-ARG BINARY_NAME=consul-kv-sync
 RUN apk add --no-cache libgcc curl
 
 ENV USER=consul
@@ -23,10 +21,10 @@ RUN addgroup \
 RUN mkdir -p /bin
 WORKDIR /tmp
 
-COPY downloads/$BINARY_NAME /bin/
+COPY downloads/consul-kv-sync /bin/
 
 WORKDIR /
 
 USER $UID:$GID
-ENTRYPOINT ["/bin/${BINARY_NAME}"]
+ENTRYPOINT ["/bin/consul-kv-sync"]
 CMD ["-d", "/sync"]
