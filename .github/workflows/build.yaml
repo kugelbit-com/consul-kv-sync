@@ -1,31 +1,116 @@
-# .github/workflows/build.yml
 name: Build
-
 on:
   push:
     branches: [ main ]
-
+  pull_request:
+    types: [ opened, reopened, synchronize ]
+    branches:
+      - main
+  workflow_dispatch:
+env:
+  GITHUB_TOKEN: ${{ github.token }}
+  RUST_BACKTRACE: 1
 jobs:
   build:
-    name: build ${{ matrix.target }}
-    runs-on: ubuntu-latest
+    name: ${{ matrix.platform.os_name }} with rust ${{ matrix.toolchain }}
+    runs-on: ${{ matrix.platform.os }}
     strategy:
       fail-fast: false
       matrix:
-        target: [ x86_64-pc-windows-gnu, x86_64-unknown-linux-musl, x86_64-unknown-linux-gnu ]
+        platform:
+          - os_name: Linux-x86_64
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            bin: consul-kv-sync
+            name: consul-kv-Linux-x86_64.tar.gz
+          - os_name: Linux-x86_64-musl
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            bin: consul-kv-sync
+            name: consul-kv-Linux-x86_64-musl.tar.gz
+          - os_name: Linux-aarch64
+            os: ubuntu-latest
+            target: aarch64-unknown-linux-musl
+            bin: consul-kv-sync
+            name: consul-kv-sync-Linux-aarch64-musl.tar.gz
+            skip_tests: true
+          - os_name: Windows-x86_64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bin: consul-kv-sync.exe
+            name: consul-kv-sync-Windows-x86_64.zip
+          - os_name: macOS-x86_64
+            os: macOS-latest
+            target: x86_64-apple-darwin
+            bin: consul-kv-sync
+            name: consul-kv-sync-Darwin-x86_64.tar.gz
+          - os_name: macOS-aarch64
+            os: macOS-latest
+            target: aarch64-apple-darwin
+            bin: consul-kv-sync
+            name: consul-kv-sync-Darwin-aarch64.tar.gz
+            skip_tests: true
+        toolchain:
+          - stable
     steps:
       - uses: actions/checkout@v4
-      - name: Compile
-        id: compile
-        uses: rust-build/rust-build.action@v1.4.5
+      - name: Cache cargo & target directories
+        uses: Swatinem/rust-cache@v2
+      - name: Install musl-tools on Linux
+        run: sudo apt-get update --yes && sudo apt-get install --yes musl-tools
+        if: contains(matrix.platform.name, 'musl')
+      - name: Install libssl-dev
+        run: sudo apt-get update --yes && sudo apt install --yes libssl-dev
+        if: contains(matrix.platform.os_name, 'Linux')
+      - name: Install scoop (Windows)
+        uses: MinoruSekine/setup-scoop@v4
+        if: steps.restore_cache.outputs.cache-hit != 'true' && contains(matrix.platform.os_name, 'Windows')
         with:
-          RUSTTARGET: ${{ matrix.target }}
-          STATIC_LINKING: false
-          UPLOAD_MODE: none
-      - name: Upload artifact
+          install_scoop: 'true'
+          buckets: extras
+          apps: cmake nasm
+          scoop_update: 'true'
+          update_path: 'true'
+      - name: Build binary
+        uses: houseabsolute/actions-rust-cross@v0
+        with:
+          command: "build"
+          target: ${{ matrix.platform.target }}
+          toolchain: ${{ matrix.toolchain }}
+          args: "--locked --release"
+          strip: false
+      - name: Run tests
+        uses: houseabsolute/actions-rust-cross@v0
+        with:
+          command: "test"
+          target: ${{ matrix.platform.target }}
+          toolchain: ${{ matrix.toolchain }}
+          args: "--locked --release"
+        if: ${{ !matrix.platform.skip_tests }}
+      - name: Package as archive
+        shell: bash
+        run: |
+          cd target/${{ matrix.platform.target }}/release
+          if [[ "${{ matrix.platform.os }}" == "windows-latest" ]]; then
+            7z a ../../../${{ matrix.platform.name }} ${{ matrix.platform.bin }}
+          else
+            tar czvf ../../../${{ matrix.platform.name }} ${{ matrix.platform.bin }}
+          fi
+          cd -
+        if: |
+          matrix.toolchain == 'stable' &&
+          ( startsWith( github.ref, 'refs/tags/v' ) ||
+            github.ref == 'refs/tags/test-release' )
+      - name: Publish release artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Binary ${{ matrix.target }}
-          path: |
-            ${{ steps.compile.outputs.BUILT_ARCHIVE }}
-            ${{ steps.compile.outputs.BUILT_CHECKSUM }}
+          name: consul-kv-sync-${{ matrix.platform.os_name }}
+          path: "consul-kv-sync-*"
+        if: matrix.toolchain == 'stable' && github.ref == 'refs/tags/test-release'
+      - name: Generate SHA-256
+        run: shasum -a 256 ${{ matrix.platform.name }}
+        if: |
+          matrix.toolchain == 'stable' &&
+          matrix.platform.os == 'macOS-latest' &&
+          ( startsWith( github.ref, 'refs/tags/v' ) ||
+            github.ref == 'refs/tags/test-release' )
