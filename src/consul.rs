@@ -9,11 +9,24 @@ pub struct ConsulClient {
 }
 
 impl ConsulClient {
+
+    fn create_client() -> Client {
+
+        let connector = reqwest::ClientBuilder::new()
+            .use_native_tls()
+            .tls_built_in_root_certs(true)
+            .tls_built_in_webpki_certs(true)
+            .build();
+
+
+        return connector.unwrap()
+    }
+
     pub fn new(address: &str, token: &str) -> Self {
         ConsulClient {
             address: address.to_string(),
             token: token.to_string(),
-            client: Client::new(),
+            client: Self::create_client(),
         }
     }
 
@@ -124,7 +137,7 @@ pub struct KeyMetadata {
     pub(crate) hash: String,
 
     #[serde(rename = "permitOverride", default = "default_true")]
-    pub(crate) permit_override: bool
+    pub(crate) permit_override: bool,
 }
 
 #[derive(Debug)]
