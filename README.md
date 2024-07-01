@@ -90,6 +90,13 @@ The project utilizes the following Rust crates:
 
 Use Rust Package Manager to download and manage these packages.
 
+## Build Dependencies
+
+Windows
+```powershell
+scoop install nasm cmake llvm perl
+```
+
 ## Cloning the Repository
 
 To clone the repository, run the following git command:
