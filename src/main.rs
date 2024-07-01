@@ -1,6 +1,7 @@
 use std::fs;
 use std::env;
-use std::path::Path;
+use std::io::Error;
+use std::path::{Path, PathBuf};
 
 use clap::Parser;
 use serde::{Deserialize, Serialize};
@@ -16,8 +17,8 @@ mod consul;
 #[command(version, about, long_about = None)]
 struct Args {
 
-    /// Files Directory
-    #[arg(short, long, default_value = ".")]
+    /// Files Directory. If empty will use the current directory
+    #[arg(short, long, default_value = "")]
     directory: String,
 
     /// Address for consul server agent. If not set or empty will use the default http://localhost:8500
@@ -44,10 +45,10 @@ async fn main() {
         }
     }
 
-    let directory = &args.directory;
-    let consul_address_env_variable = "CONSUL_ADDRESS";
+    let directory = if(args.directory.trim().is_empty()) { get_current_working_dir() } else { args.directory.to_string() };
+    let consul_address_env_variable = "CONSUL_HTTP_ADDR";
     let consul_address_env_value =  env::var(consul_address_env_variable);
-    let consul_token_env_variable = "CONSUL_TOKEN";
+    let consul_token_env_variable = "CONSUL_HTTP_TOKEN";
     let consul_token_env_value =  env::var(consul_token_env_variable);
     let mut consul_token = "".to_string();
     let mut consul_address = "".to_string();
@@ -81,9 +82,9 @@ async fn main() {
 
     let mut changed_files = Vec::new();
 
-    for entry in WalkDir::new(directory)
+    for entry in WalkDir::new(&directory)
         .into_iter()
-        .filter_entry(|e| filter_files(e, directory, &ignored_files))
+        .filter_entry(|e| filter_files(e, &directory, &ignored_files))
         .filter_map(|e| e.ok()) {
         if entry.file_type().is_file() {
             let path = entry.path();
@@ -169,4 +170,17 @@ fn calculate_hash(content: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(content);
     format!("{:x}", hasher.finalize())
+}
+
+fn get_current_working_dir() -> String {
+    match env::current_dir() {
+        Ok(dir) => {
+            let path_str = dir.to_str().unwrap_or("");
+            return path_str.to_string()
+        }
+        Err(e) => {
+            println!("Error getting current directory: {}", e);
+            return "".to_string()
+        }
+    }
 }

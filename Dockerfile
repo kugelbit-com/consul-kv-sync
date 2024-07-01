@@ -3,8 +3,8 @@ RUN apk add --no-cache libgcc curl
 
 ENV USER=consul
 ENV GROUPNAME=$USER
-ENV UID=1001
-ENV GID=1001
+ENV UID=1000
+ENV GID=1000
 
 RUN addgroup \
     --gid "$GID" \
