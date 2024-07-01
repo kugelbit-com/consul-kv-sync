@@ -12,6 +12,9 @@ on:
 env:
   GITHUB_TOKEN: ${{ github.token }}
   RUST_BACKTRACE: 1
+  windows_packages_to_install: "cmake nasm"
+  cache_version: v0
+  cache_hash_seed_file_path: './.github/workflows/cache_seed_file_for_scoop.txt'
 jobs:
   build:
     name: ${{ matrix.platform.os_name }} with rust ${{ matrix.toolchain }}
@@ -24,12 +27,12 @@ jobs:
             os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             bin: consul-kv-sync
-            name: consul-kv-Linux-x86_64.tar.gz
+            name: consul-kv-sync-Linux-x86_64.tar.gz
           - os_name: Linux-x86_64-musl
             os: ubuntu-latest
             target: x86_64-unknown-linux-musl
             bin: consul-kv-sync
-            name: consul-kv-Linux-x86_64-musl.tar.gz
+            name: consul-kv-sync-Linux-x86_64-musl.tar.gz
           - os_name: Linux-aarch64
             os: ubuntu-latest
             target: aarch64-unknown-linux-musl
@@ -66,11 +69,11 @@ jobs:
         if: contains(matrix.platform.os_name, 'Linux')
       - name: Install scoop (Windows)
         uses: MinoruSekine/setup-scoop@v4
-        if: steps.restore_cache.outputs.cache-hit != 'true' && contains(matrix.platform.os_name, 'Windows')
+        if: contains(matrix.platform.os_name, 'Windows')
         with:
           install_scoop: 'true'
           buckets: extras
-          apps: cmake nasm
+          apps: ${{ env.windows_packages_to_install }}
           scoop_update: 'true'
           update_path: 'true'
       - name: Build binary
@@ -108,7 +111,10 @@ jobs:
         with:
           name: consul-kv-sync-${{ matrix.platform.os_name }}
           path: "consul-kv-sync-*"
-        if: matrix.toolchain == 'stable' && github.ref == 'refs/tags/test-release'
+          compression-level: 0
+        if: matrix.toolchain == 'stable' && 
+          ( startsWith( github.ref, 'refs/tags/v' ) ||
+            github.ref == 'refs/tags/test-release' )
       - name: Generate SHA-256
         run: shasum -a 256 ${{ matrix.platform.name }}
         if: |
