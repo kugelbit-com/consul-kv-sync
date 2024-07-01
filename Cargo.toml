@@ -8,12 +8,12 @@ lto = true
 
 [dependencies]
 walkdir = "2.5.0"
-reqwest = { version = "0.12.4", default-features = false, features = ["json", "rustls-tls", "native-tls"] }
+reqwest = { version = "0.12.5", default-features = false, features = ["json", "rustls-tls", "native-tls"] }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.9"
 base64 = "0.22.1"
 clap = { version = "4.5.4", features = ["derive"] }
-rustls = "0.22.4"
+rustls = "0.23.10"
 rustls-native-certs = "0.7.0"
