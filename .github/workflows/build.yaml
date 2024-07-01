@@ -20,6 +20,7 @@ jobs:
         uses: rust-build/rust-build.action@v1.4.5
         with:
           RUSTTARGET: ${{ matrix.target }}
+          STATIC_LINKING: false
           UPLOAD_MODE: none
       - name: Upload artifact
         uses: actions/upload-artifact@v4

@@ -19,4 +19,5 @@ jobs:
         uses: rust-build/rust-build.action@v1.4.5
         with:
           RUSTTARGET:  ${{ matrix.target }}
+          STATIC_LINKING: false
           UPLOAD_MODE: none
