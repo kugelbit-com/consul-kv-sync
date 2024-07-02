@@ -20,7 +20,6 @@ env:
 jobs:
   build-image:
     name: build image ${{ matrix.target }}
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
