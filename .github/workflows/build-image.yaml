@@ -9,6 +9,7 @@ on:
     inputs:
       RELEASE_VERSION:
         required: true
+        description: "Version of the release to download artifacts"
         type: string
 env:
   RELEASE_INPUT: ${{ inputs.RELEASE_VERSION }}
@@ -48,7 +49,8 @@ jobs:
         with:
           out-file-path: downloads
           tag: ${{ github.event.inputs.RELEASE_VERSION }}
-          tarBall: true
+          fileName: consul-kv-sync-Linux-x86_64-musl.tar.gz
+          tarBall: false
           zipBall: false
           extract: true
           token: ${{ secrets.GITHUB_TOKEN }}
